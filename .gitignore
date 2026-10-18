@@ -205,4 +205,5 @@ log*.txt
 /CLAUDE.md
 /docs/
 /tests/regression/README.md
+/backup_docs
 /Archive/
