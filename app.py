@@ -9,7 +9,7 @@ from model.compare import LEDGER_ONLY, NAME_DIFF, NO_LEDGER, NO_MARK, OK, build_
 from model.excel_export import INTEGRITY_COLORS, create_excel
 from model.ledger import load_ledger, parse_ledger_filename
 
-st.set_page_config(page_title="Index-comparer - 出図目録･図面台帳比較ツール", page_icon="📑", layout="wide")
+st.set_page_config(page_title="Index-comparer", page_icon="📑", layout="wide")
 
 # 日本語だけ英数字より小さく表示する（unicode-range + size-adjust）。streamlit スキル §11
 st.markdown("""
