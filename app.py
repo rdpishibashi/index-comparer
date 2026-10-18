@@ -5,9 +5,8 @@ import pandas as pd
 import streamlit as st
 
 from model.catalog_pdf import parse_catalog_pdf
-from model.compare import (STATE_BOTH, STATE_CATALOG_ONLY, STATE_LEDGER_ONLY, build_catalog_list,
-                           build_drawing_comparison)
-from model.excel_export import COLOR_DIFF, COLOR_ONLY_A, COLOR_ONLY_B, COLOR_SAME, create_excel
+from model.compare import LEDGER_ONLY, NAME_DIFF, NO_LEDGER, NO_MARK, OK, build_catalog_list
+from model.excel_export import INTEGRITY_COLORS, create_excel
 from model.ledger import load_ledger, parse_ledger_filename
 
 st.set_page_config(page_title="出図目録 比較", page_icon="📑", layout="wide")
@@ -32,9 +31,6 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-
-STATE_COLORS = {STATE_BOTH: COLOR_SAME, STATE_CATALOG_ONLY: COLOR_ONLY_A, STATE_LEDGER_ONLY: COLOR_ONLY_B}
-STATUS_COLORS = {'both': COLOR_SAME, 'name_diff': COLOR_DIFF, 'catalog_only': COLOR_ONLY_A}
 
 
 def _input_signature(pdfs, ledger):
@@ -77,10 +73,9 @@ def run_comparison(pdfs, ledger_file, shiban):
         _show_warnings(excluded, skipped, errors)
         return None
 
-    catalog_df = build_catalog_list(rows, ledger_df)
-    comparison = build_drawing_comparison(catalog_df, ledger_df)
+    catalog_df = build_catalog_list(rows, ledger_df, shiban)
     return {
-        'shiban': shiban, 'catalog_df': catalog_df, 'comparison': comparison,
+        'shiban': shiban, 'catalog_df': catalog_df,
         'excel': create_excel(catalog_df),
         'excluded': excluded, 'skipped': skipped, 'errors': errors,
         'pdf_count': len(pdfs) - len(excluded) - len(skipped) - len(errors),
@@ -104,27 +99,17 @@ def _show_warnings(excluded, skipped, errors):
 
 
 def show_result(result):
-    catalog_df, comparison = result['catalog_df'], result['comparison']
-    counts = comparison['状態'].value_counts()
-    both = comparison[comparison['状態'] == STATE_BOTH]['品目名称判定'].value_counts()
+    catalog_df = result['catalog_df']
+    counts = catalog_df['整合性'].value_counts()
     st.info(
-        f"出図目録 {result['pdf_count']}ファイル・{len(catalog_df)}行 ／ "
-        f"図番（▼）の比較: 両方 {counts.get(STATE_BOTH, 0)}件・出図目録のみ {counts.get(STATE_CATALOG_ONLY, 0)}件・"
-        f"図面台帳のみ {counts.get(STATE_LEDGER_ONLY, 0)}件 ／ "
-        f"品目名称（両方にある図番）: 一致 {both.get('一致', 0)}件・前方一致 {both.get('前方一致', 0)}件・"
-        f"不一致 {both.get('不一致', 0)}件"
+        f"出図目録 {result['pdf_count']}ファイル・{(catalog_df['整合性'] != LEDGER_ONLY).sum()}行 ／ 整合性: "
+        + "・".join(f"{label} {counts.get(label, 0)}件" for label in (OK, NAME_DIFF, NO_LEDGER, NO_MARK, LEDGER_ONLY))
     )
     _show_warnings(result['excluded'], result['skipped'], result['errors'])
 
-    st.subheader("図番の比較（出図目録の▼ ⇔ 図面台帳の Child）")
-    st.caption("前方一致: 出図目録の品目名称が途中で切れているだけ（一致として扱います）")
-    comp_colors = [STATE_COLORS[s] for s in comparison['状態']]
-    st.dataframe(_color_rows(comparison, comp_colors), width='stretch', hide_index=True)
-
-    st.subheader("出図目録一覧")
-    shown = catalog_df.drop(columns=['_status', '_name_judge']).reset_index(drop=True)
-    row_colors = [STATUS_COLORS.get(s) for s in catalog_df['_status']]
-    st.dataframe(_color_rows(shown, row_colors), width='stretch', hide_index=True)
+    with st.expander("出図目録と図面台帳比較プレビュー", expanded=False):
+        st.dataframe(_color_rows(catalog_df, [INTEGRITY_COLORS.get(v) for v in catalog_df['整合性']]),
+                     width='stretch', hide_index=True)
 
     st.download_button(
         "Excelをダウンロード", data=result['excel'],
