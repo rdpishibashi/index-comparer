@@ -5,7 +5,7 @@ import openpyxl
 
 from conftest import catalog_row, make_ledger_df
 from model.compare import build_catalog_list, to_catalog_name_format
-from model.excel_export import COLOR_DIFF, COLOR_ONLY_A, COLOR_ONLY_B, COLOR_SAME, SHEET_NAME, create_excel
+from model.excel_export import COLOR_BLUE, COLOR_GREEN, COLOR_PINK, COLOR_YELLOW, SHEET_NAME, create_excel
 
 EXPECTED_HEADER = ['指図番号', '改', '品目名称', '図面番号', 'SZ', '備考',
                    '整合性', '図面台帳品目名称', 'ファイル名', 'ページ']
@@ -46,8 +46,15 @@ def test_ledger_only_row_has_blank_page_and_filename_and_a_numeric_page_elsewher
     assert ws.cell(6, 4).value == 'EE9-9A' and ws.cell(6, 9).value is None and ws.cell(6, 10).value is None
 
 
-def test_row_colors_follow_integrity_and_no_mark_rows_are_plain():
+def test_row_colors_follow_integrity_value():
+    """完全一致=緑、品目名称不一致=黄、台帳なし▼=青、▼なし・台帳のみ=赤（薄い色。ユーザー指定）。"""
     ws = _sheet()
-    assert [_bg(ws.cell(r, 3)) for r in (2, 3, 4)] == [COLOR_SAME[0], COLOR_DIFF[0], COLOR_ONLY_A[0]]
-    assert ws.cell(5, 3).fill.fill_type is None
-    assert _bg(ws.cell(6, 3)) == COLOR_ONLY_B[0]
+    assert [_bg(ws.cell(r, 3)) for r in range(2, 7)] == [
+        COLOR_GREEN[0], COLOR_YELLOW[0], COLOR_BLUE[0], COLOR_PINK[0], COLOR_PINK[0]]
+
+
+def test_rows_with_blank_integrity_have_no_color():
+    ledger = make_ledger_df([('EE1-1A', 'A', TITLE)])
+    df = build_catalog_list([catalog_row('', 'ボルト'), catalog_row('EE7-7A', 'ＸＸ')], ledger, 'ME26-9603-0')
+    ws = openpyxl.load_workbook(io.BytesIO(create_excel(df)))[SHEET_NAME]
+    assert ws.cell(2, 3).fill.fill_type is None and ws.cell(3, 3).fill.fill_type is None

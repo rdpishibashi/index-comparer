@@ -3,18 +3,19 @@ import io
 
 import pandas as pd
 
-from model.compare import LEDGER_ONLY, LIST_COLUMNS, NAME_DIFF, NO_LEDGER, OK
+from model.compare import LEDGER_ONLY, LIST_COLUMNS, NAME_DIFF, NO_LEDGER, NO_MARK, OK
 
 SHEET_NAME = '出図目録一覧'
 
-# 淡色4色セット（Tools/CLAUDE.md「Excel Output Pattern」。背景, 文字）
-COLOR_ONLY_A = ('#FEF1F5', '#9C0006')   # 出図目録のみ（淡ピンク）
-COLOR_ONLY_B = ('#EAF1FB', '#1F4E79')   # 図面台帳のみ（淡青）
-COLOR_DIFF = ('#FFF6D5', '#9C6500')     # 両方にあるが名称が違う（淡黄）
-COLOR_SAME = ('#EAF7EC', '#006100')     # 両方にあり一致（淡緑）
+# 淡色セット（HostPL-comparer と同じ4色。背景, 文字）
+COLOR_PINK = ('#FEF1F5', '#9C0006')    # 薄い赤
+COLOR_BLUE = ('#EAF1FB', '#1F4E79')    # 薄い青
+COLOR_YELLOW = ('#FFF6D5', '#9C6500')  # 薄い黄
+COLOR_GREEN = ('#EAF7EC', '#006100')   # 薄い緑
 
-# 「整合性」の値 → 行の色。「▼なし」と空欄は色を付けない
-INTEGRITY_COLORS = {OK: COLOR_SAME, NAME_DIFF: COLOR_DIFF, NO_LEDGER: COLOR_ONLY_A, LEDGER_ONLY: COLOR_ONLY_B}
+# 「整合性」の値 → 行の色（ユーザー指定）。空欄の行は色を付けない
+INTEGRITY_COLORS = {OK: COLOR_GREEN, NAME_DIFF: COLOR_YELLOW, NO_LEDGER: COLOR_BLUE,
+                    NO_MARK: COLOR_PINK, LEDGER_ONLY: COLOR_PINK}
 
 COLUMN_WIDTHS = {'指図番号': 14, '改': 5, '品目名称': 60, '図面番号': 18, 'SZ': 5, '備考': 50,
                  '整合性': 14, '図面台帳品目名称': 60, 'ファイル名': 40, 'ページ': 6}
