@@ -3,7 +3,7 @@ import pytest
 
 from conftest import catalog_row, make_ledger_df
 from model.compare import (LEDGER_ONLY, NAME_DIFF, NO_LEDGER, NO_LEDGER_NAME, NO_MARK, OK,
-                           TRUNCATION_MIN_CHARS, build_catalog_list, names_match, to_catalog_name_format)
+                           TRUNCATION_MIN_CHARS, EMPTY_LABEL, build_catalog_list, filter_by_integrity, names_match, to_catalog_name_format)
 
 TITLE = 'ELECTRICAL SCHEMATIC DIAGRAM'
 SUB = 'DG MONITOR B1'
@@ -108,3 +108,21 @@ def test_page_column_is_nullable_int_so_ledger_only_rows_do_not_mix_types():
     df = _build([catalog_row('EE1-1A', FULL, '▼', page=3)])
     assert str(df['ページ'].dtype) == 'Int64'
     assert df['ページ'].iloc[0] == 3 and df['ページ'].iloc[-1] is not None and df['ページ'].isna().iloc[-1]
+
+
+@pytest.mark.parametrize('selected, expected_numbers', [
+    ([OK, NAME_DIFF, NO_LEDGER, NO_MARK, LEDGER_ONLY, EMPTY_LABEL], ['A', 'B', 'C', '', 'D']),  # 全選択は全行
+    ([OK], ['A']),
+    ([EMPTY_LABEL], ['']),            # 空欄の行は「（空欄）」で選ぶ
+    ([LEDGER_ONLY], ['D']),           # ファイル名・ページが空の台帳のみ行も絞り込める
+    ([OK, EMPTY_LABEL], ['A', '']),
+    ([], []),                         # 空選択は0行
+])
+def test_filter_by_integrity_selects_rows_including_empty_value(selected, expected_numbers):
+    """絞り込みは「整合性」の値（空欄は EMPTY_LABEL）で行を選び、元の並びを保つ。"""
+    rows = [catalog_row('A', 'Ｘ', mark='▼'), catalog_row('B', 'Ｚ', mark='▼'),
+            catalog_row('C', '', mark='▼'), catalog_row('', 'BUY')]
+    ledger = make_ledger_df([('A', '', 'X'), ('B', '', 'Y'), ('D', '', 'W')])
+    df = build_catalog_list(rows, ledger, SHIBAN)
+    # A=完全一致, B=名称不一致, C=台帳なし▼, 購入部品=空欄, D=台帳のみ
+    assert list(filter_by_integrity(df, selected)['図面番号']) == expected_numbers

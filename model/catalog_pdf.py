@@ -78,3 +78,11 @@ def parse_catalog_pdf(file_bytes, filename):
     rows = parse_tables(tables_per_page, filename)
     order_no = rows[0]['指図番号'] if rows else ''
     return CatalogPdf(filename, 'ok', order_no=order_no, rows=rows)
+
+
+def render_pdf_pages(file_bytes, resolution=110):
+    """PDFの全ページを PIL 画像のリストにする（画面表示用）。"""
+    import pdfplumber
+
+    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        return [page.to_image(resolution=resolution).original for page in pdf.pages]

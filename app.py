@@ -4,8 +4,9 @@ import os
 import pandas as pd
 import streamlit as st
 
-from model.catalog_pdf import parse_catalog_pdf
-from model.compare import LEDGER_ONLY, NAME_DIFF, NO_LEDGER, NO_MARK, OK, build_catalog_list
+from model.catalog_pdf import parse_catalog_pdf, render_pdf_pages
+from model.compare import (EMPTY_LABEL, LEDGER_ONLY, NAME_DIFF, NO_LEDGER, NO_MARK, OK, build_catalog_list,
+                           filter_by_integrity)
 from model.excel_export import INTEGRITY_COLORS, create_excel
 from model.ledger import load_ledger, parse_ledger_filename
 
@@ -46,25 +47,35 @@ def _color_rows(df, colors):
     return df.style.apply(style_row, axis=1)
 
 
+@st.cache_data(show_spinner="PDFを画像化しています...")
+def _render_pages(file_bytes):
+    return render_pdf_pages(file_bytes)
+
+
 def run_comparison(pdfs, ledger_file, shiban):
     ledger_df, error = load_ledger(ledger_file.getvalue())
     if error:
         st.error(error)
         return None
 
-    rows, excluded, skipped, errors = [], [], [], []
+    rows, catalogs, excluded, skipped, errors = [], [], [], [], []
     placeholder = st.empty()
     bar = placeholder.progress(0.0, text="出図目録を読み込んでいます...")
     for i, f in enumerate(pdfs, start=1):
         parsed = parse_catalog_pdf(f.getvalue(), f.name)
+        note = ''  # 「出図目録の確認」で比較対象外の理由を添える
         if parsed.status == 'skipped':
             skipped.append(f.name)
+            note = '出図目録ではないPDF'
         elif parsed.status == 'error':
             errors.append(f"{f.name}: {parsed.message}")
+            note = '読み込めなかったPDF'
         elif parsed.order_no != shiban:
             excluded.append(f"{f.name}（指図番号 {parsed.order_no or '不明'}）")
+            note = '指番不一致'
         else:
             rows += parsed.rows
+        catalogs.append((f.name, f.getvalue(), note))  # 比較対象外のPDFも確認用に残す
         bar.progress(i / len(pdfs), text=f"{i}/{len(pdfs)}件を読み込み中...")
     placeholder.empty()
 
@@ -75,7 +86,7 @@ def run_comparison(pdfs, ledger_file, shiban):
 
     catalog_df = build_catalog_list(rows, ledger_df, shiban)
     return {
-        'shiban': shiban, 'catalog_df': catalog_df,
+        'shiban': shiban, 'catalog_df': catalog_df, 'ledger_df': ledger_df, 'catalogs': catalogs,
         'excel': create_excel(catalog_df),
         'excluded': excluded, 'skipped': skipped, 'errors': errors,
         'pdf_count': len(pdfs) - len(excluded) - len(skipped) - len(errors),
@@ -108,8 +119,30 @@ def show_result(result):
     _show_warnings(result['excluded'], result['skipped'], result['errors'])
 
     with st.expander("出図目録と図面台帳比較プレビュー", expanded=False):
-        st.dataframe(_color_rows(catalog_df, [INTEGRITY_COLORS.get(v) for v in catalog_df['整合性']]),
+        labels = [OK, NAME_DIFF, NO_LEDGER, NO_MARK, LEDGER_ONLY, EMPTY_LABEL]
+        selected = st.pills("整合性", labels, selection_mode='multi', default=labels, key="integrity_filter")
+        shown = filter_by_integrity(catalog_df, selected or []).reset_index(drop=True)  # 表示だけの絞り込み（Excelは全件）
+        st.caption(f"{len(shown)}/{len(catalog_df)}行を表示")
+        st.dataframe(_color_rows(shown, [INTEGRITY_COLORS.get(v) for v in shown['整合性']]),
                      width='stretch', hide_index=True)
+
+    with st.expander("出図目録の確認", expanded=False):
+        for name, data, note in result['catalogs']:
+            name_col, toggle_col = st.columns([3, 1], vertical_alignment="center")
+            name_col.write(f"{name}（{note}）" if note else name)
+            if toggle_col.toggle("ファイルを表示", key=f"view_pdf_{name}"):
+                try:
+                    images = _render_pages(data)
+                except Exception as exc:  # 壊れたPDFでも他のファイルの表示は続ける
+                    st.error(f"PDFを表示できません: {type(exc).__name__}: {exc}")
+                    continue
+                with st.container(height=700):
+                    for image in images:
+                        st.image(image, width='stretch')
+
+    with st.expander("図面管理台帳の確認", expanded=False):
+        ledger_view = result['ledger_df'].rename(columns={'Child': '図面番号'})[['図面番号', 'Title', 'Subtitle']]
+        st.dataframe(ledger_view, width='stretch', hide_index=True)
 
     st.download_button(
         "Excelをダウンロード", data=result['excel'],

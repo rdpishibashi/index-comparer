@@ -16,6 +16,7 @@ NAME_DIFF = '品目名称不一致'
 NO_LEDGER = '台帳なし▼'
 NO_MARK = '▼なし'
 LEDGER_ONLY = '台帳のみ'
+EMPTY_LABEL = '（空欄）'  # 整合性が空文字の行を絞り込みで指すときの表示名
 
 
 def to_catalog_name_format(subtitle, title):
@@ -72,3 +73,9 @@ def build_catalog_list(catalog_rows, ledger_df, shiban):
     # 台帳のみの行は「ページ」が空。int と None の混在列は Arrow 変換で警告になるため nullable 整数にそろえる
     df['ページ'] = df['ページ'].astype('Int64')
     return df
+
+
+def filter_by_integrity(df, selected):
+    """「整合性」が selected（表示名のリスト。空欄の行は EMPTY_LABEL）に含まれる行だけを返す（表示用の絞り込み）。"""
+    labels = df['整合性'].where(df['整合性'] != '', EMPTY_LABEL)
+    return df[labels.isin(selected)]
