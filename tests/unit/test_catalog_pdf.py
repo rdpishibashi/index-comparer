@@ -1,5 +1,5 @@
 """出図目録PDFの表 → 行データ変換と、PDFの判定（出図目録か／壊れていないか）を守る。"""
-from model.catalog_pdf import ROW_COLUMNS, is_catalog_tables, parse_catalog_pdf, parse_tables
+from model.catalog_pdf import ROW_COLUMNS, is_catalog_tables, parse_catalog_pdf, parse_tables, render_pdf_pages
 
 HEADER = [['指図番号', None, 'ｻｲﾄﾞ', '図面番号'], ['ME26-9603-0', None, '405', 'EE7319-421-09A']]
 ITEM_HEAD = ['', '改', '符号', '品目名称', '図面番号', 'SZ', 'ﾒｰｶ名', '備考']
@@ -41,3 +41,17 @@ def test_parse_catalog_pdf_returns_error_for_broken_bytes_without_raising():
     """壊れたPDFは例外にせず error として返す（他のPDFの処理を止めない）。"""
     result = parse_catalog_pdf(b'not a pdf', 'broken.pdf')
     assert result.status == 'error' and result.filename == 'broken.pdf' and result.rows == []
+
+
+def test_render_pdf_pages_returns_one_image_per_page():
+    """画面表示用に、PDFの全ページを1ページ1枚の画像にする。"""
+    import pypdfium2 as pdfium
+
+    pdf = pdfium.PdfDocument.new()
+    pdf.new_page(200, 100)
+    pdf.new_page(200, 100)
+    import io
+    buf = io.BytesIO()
+    pdf.save(buf)
+    images = render_pdf_pages(buf.getvalue(), resolution=50)
+    assert len(images) == 2 and all(im.size[0] > 0 for im in images)
