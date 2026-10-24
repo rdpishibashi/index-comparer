@@ -116,16 +116,17 @@ def show_result(result):
 
     with st.expander("出図目録と図面台帳比較プレビュー", expanded=False):
         labels = [OK, NAME_DIFF, NO_LEDGER, NO_MARK, LEDGER_ONLY, EMPTY_LABEL]
-        selected = st.multiselect("整合性で絞り込み", labels, default=labels, key="integrity_filter")
-        shown = filter_by_integrity(catalog_df, selected).reset_index(drop=True)  # 表示だけの絞り込み（Excelは全件）
+        selected = st.pills("整合性", labels, selection_mode='multi', default=labels, key="integrity_filter")
+        shown = filter_by_integrity(catalog_df, selected or []).reset_index(drop=True)  # 表示だけの絞り込み（Excelは全件）
         st.caption(f"{len(shown)}/{len(catalog_df)}行を表示")
         st.dataframe(_color_rows(shown, [INTEGRITY_COLORS.get(v) for v in shown['整合性']]),
                      width='stretch', hide_index=True)
 
     with st.expander("出図目録の確認", expanded=False):
         for name, data in result['catalogs']:
-            st.write(name)
-            if st.toggle("出図目録を表示", key=f"view_pdf_{name}"):
+            name_col, toggle_col = st.columns([3, 1], vertical_alignment="center")
+            name_col.write(name)
+            if toggle_col.toggle("出図目録を表示", key=f"view_pdf_{name}"):
                 with st.container(height=700):
                     for image in _render_pages(data):
                         st.image(image, width='stretch')
