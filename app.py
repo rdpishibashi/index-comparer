@@ -63,15 +63,19 @@ def run_comparison(pdfs, ledger_file, shiban):
     bar = placeholder.progress(0.0, text="出図目録を読み込んでいます...")
     for i, f in enumerate(pdfs, start=1):
         parsed = parse_catalog_pdf(f.getvalue(), f.name)
+        note = ''  # 「出図目録の確認」で比較対象外の理由を添える
         if parsed.status == 'skipped':
             skipped.append(f.name)
+            note = '出図目録ではないPDF'
         elif parsed.status == 'error':
             errors.append(f"{f.name}: {parsed.message}")
+            note = '読み込めなかったPDF'
         elif parsed.order_no != shiban:
             excluded.append(f"{f.name}（指図番号 {parsed.order_no or '不明'}）")
+            note = '指番不一致'
         else:
             rows += parsed.rows
-            catalogs.append((f.name, f.getvalue()))
+        catalogs.append((f.name, f.getvalue(), note))  # 比較対象外のPDFも確認用に残す
         bar.progress(i / len(pdfs), text=f"{i}/{len(pdfs)}件を読み込み中...")
     placeholder.empty()
 
@@ -123,12 +127,17 @@ def show_result(result):
                      width='stretch', hide_index=True)
 
     with st.expander("出図目録の確認", expanded=False):
-        for name, data in result['catalogs']:
+        for name, data, note in result['catalogs']:
             name_col, toggle_col = st.columns([3, 1], vertical_alignment="center")
-            name_col.write(name)
+            name_col.write(f"{name}（{note}）" if note else name)
             if toggle_col.toggle("出図目録を表示", key=f"view_pdf_{name}"):
+                try:
+                    images = _render_pages(data)
+                except Exception as exc:  # 壊れたPDFでも他のファイルの表示は続ける
+                    st.error(f"PDFを表示できません: {type(exc).__name__}: {exc}")
+                    continue
                 with st.container(height=700):
-                    for image in _render_pages(data):
+                    for image in images:
                         st.image(image, width='stretch')
 
     with st.expander("図面管理台帳の確認", expanded=False):
