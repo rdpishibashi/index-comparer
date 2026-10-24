@@ -130,7 +130,7 @@ def show_result(result):
         for name, data, note in result['catalogs']:
             name_col, toggle_col = st.columns([3, 1], vertical_alignment="center")
             name_col.write(f"{name}（{note}）" if note else name)
-            if toggle_col.toggle("出図目録を表示", key=f"view_pdf_{name}"):
+            if toggle_col.toggle("ファイルを表示", key=f"view_pdf_{name}"):
                 try:
                     images = _render_pages(data)
                 except Exception as exc:  # 壊れたPDFでも他のファイルの表示は続ける
