@@ -55,8 +55,8 @@ def test_render_pdf_pages_returns_one_image_per_page():
     import io
     buf = io.BytesIO()
     pdf.save(buf)
-    images = render_pdf_pages(buf.getvalue(), resolution=50)
-    assert len(images) == 2 and all(im.size[0] > 0 for im in images)
+    images = render_pdf_pages(buf.getvalue(), width=300)
+    assert len(images) == 2 and all(im.size[0] == 300 for im in images)   # 横幅は指定どおり
 
 
 def _header_with_reason(value):

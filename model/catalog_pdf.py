@@ -101,8 +101,10 @@ def parse_catalog_pdf(file_bytes, filename):
     return CatalogPdf(filename, 'ok', order_no=order_no, rows=rows)
 
 
-def render_pdf_pages(file_bytes, resolution=150):
-    """PDFの全ページを PIL 画像のリストにする（画面表示用）。
+def render_pdf_pages(file_bytes, width=2400):
+    """PDFの全ページを、横幅 width ピクセルの PIL 画像のリストにする（画面表示用）。
+
+    用紙サイズによらず横幅をそろえる（A4 でも図面PDFの大判でも、画像の大きさと文字の細かさが一定になる）。
 
     出図目録のPDFは日本語フォント（ＭＳ ゴシック）を埋め込んでいないため、実行環境に日本語フォントが必要
     （Streamlit Cloud は `packages.txt` の fonts-ipafont-gothic。無いと日本語が欠ける）。
@@ -110,4 +112,4 @@ def render_pdf_pages(file_bytes, resolution=150):
     import pdfplumber
 
     with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-        return [page.to_image(resolution=resolution).original for page in pdf.pages]
+        return [page.to_image(width=width).original for page in pdf.pages]
