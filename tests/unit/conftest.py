@@ -22,8 +22,8 @@ def make_ledger_xlsx(sheets):
     return buf.getvalue()
 
 
-def catalog_row(number='', name='', mark='', filename='a_目録.pdf', page=1, order='ME26-9603-0', size='', note=''):
-    return {'指図番号': order, '改': mark, '品目名称': name, '図面番号': number, 'SZ': size,
+def catalog_row(number='', name='', mark='', filename='a_目録.pdf', page=1, order='ME26-9603-0', size='', note='', kind=''):
+    return {'指図番号': order, '区分': kind, '改': mark, '品目名称': name, '図面番号': number, 'SZ': size,
             '備考': note, 'ファイル名': filename, 'ページ': page}
 
 

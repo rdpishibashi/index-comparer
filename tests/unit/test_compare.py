@@ -3,7 +3,7 @@ import pytest
 
 from conftest import catalog_row, make_ledger_df
 from model.compare import (LEDGER_ONLY, NAME_DIFF, NO_LEDGER, NO_LEDGER_NAME, NO_MARK, OK,
-                           TRUNCATION_MIN_CHARS, EMPTY_LABEL, build_catalog_list, filter_by_integrity, names_match, to_catalog_name_format)
+                           TRUNCATION_MIN_CHARS, EMPTY_LABEL, build_catalog_list, filter_by_integrity, names_match, to_catalog_name_format, to_halfwidth)
 
 TITLE = 'ELECTRICAL SCHEMATIC DIAGRAM'
 SUB = 'DG MONITOR B1'
@@ -49,7 +49,7 @@ LEDGER = make_ledger_df([
     ('EE9-9A', 'ONLY LEDGER', TITLE),             # 台帳のみ（目録に図番なし）
 ])
 LONG = to_catalog_name_format('MODULE B1 DIAGRAM LIST', TITLE)
-MISMATCH_NAME = to_catalog_name_format('SENSOR LINE B1', 'ELECTRICAL SCHEMATICDIAGRAM')
+MISMATCH_NAME = to_halfwidth(to_catalog_name_format('SENSOR LINE B1', 'ELECTRICAL SCHEMATICDIAGRAM'))  # 出力は半角表示
 
 
 def _build(rows):
@@ -99,7 +99,7 @@ def test_ledger_only_rows_are_appended_with_ledger_name_and_shiban():
     assert df.index[-1] == only.index[-1] and (df.iloc[-3:]['整合性'] == LEDGER_ONLY).all()
     last = only.iloc[-1]
     assert last['指図番号'] == SHIBAN and last['品目名称'] == '' and last['ファイル名'] == ''
-    assert last['図面台帳品目名称'] == to_catalog_name_format('ONLY LEDGER', TITLE)
+    assert last['図面台帳品目名称'] == to_halfwidth(to_catalog_name_format('ONLY LEDGER', TITLE))
     assert only.loc[only['図面番号'] == 'EE4-4A', '図面台帳品目名称'].iloc[0] == NO_LEDGER_NAME
 
 
@@ -126,3 +126,39 @@ def test_filter_by_integrity_selects_rows_including_empty_value(selected, expect
     df = build_catalog_list(rows, ledger, SHIBAN)
     # A=完全一致, B=名称不一致, C=台帳なし▼, 購入部品=空欄, D=台帳のみ
     assert list(filter_by_integrity(df, selected)['図面番号']) == expected_numbers
+
+
+@pytest.mark.parametrize('kind, mark, number, expected', [
+    ('新規', '', 'EE1-1A', OK),          # 新規ページは ▼ が無くても ▼ あり（台帳に一致）
+    ('新規', '', 'EE3-3A', NAME_DIFF),   # 新規 × 台帳あり・名称不一致
+    ('新規', '', 'EE7-7A', NO_LEDGER),   # 新規 × 台帳なし
+    ('新規', '▼', 'EE1-1A', OK),         # 新規 × もとから ▼
+    ('新規', '', '', ''),                # 新規でも購入部品（図番なし）は空欄
+    ('変更', '', 'EE1-1A', NO_MARK),     # 変更は従来どおり
+    ('変更', '▼', 'EE1-1A', OK),
+    ('', '', 'EE1-1A', NO_MARK),         # 区分なし（空欄・その他）は変更と同じ扱い
+    ('', '', 'EE7-7A', ''),
+])
+def test_new_kind_pages_are_treated_as_marked_others_as_before(kind, mark, number, expected):
+    """区分「新規」のページは「改」の ▼ の有無によらず全行を ▼ ありとして判定する。変更・区分なしは従来どおり。"""
+    name = FULL if number == 'EE1-1A' else 'ＸＸ'
+    df = _build([catalog_row(number, name, mark, kind=kind)])
+    assert df.loc[0, '整合性'] == expected
+    assert df.loc[0, '改'] == mark and df.loc[0, '区分'] == kind   # 「改」は原文のまま
+
+
+@pytest.mark.parametrize('text, expected', [
+    ('ＭＯＤＵＬＥ＿Ｂ１　（ＩＮ）−ｱ', 'MODULE_B1 (IN)−ｱ'),   # 全角英数記号・全角空白だけ半角。カナ・U+2212 は不変
+    ('ケーブル配線図', 'ケーブル配線図'),
+    ('', ''),
+])
+def test_to_halfwidth(text, expected):
+    assert to_halfwidth(text) == expected
+
+
+def test_output_names_are_halfwidth_but_matching_is_done_in_fullwidth_and_no_name_note_stays():
+    """判定は全角書式で行い、出力の品目名称・図面台帳品目名称だけ半角にする（「台帳に名称なし」の注記は全角のまま）。"""
+    df = _build([catalog_row('EE1-1A', FULL, '▼'), catalog_row('EE3-3A', 'ＸＸ', '▼'), catalog_row('EE4-4A', 'ＸＸ', '▼')])
+    assert list(df['整合性'].iloc[:3]) == [OK, NAME_DIFF, NAME_DIFF]
+    assert df.loc[0, '品目名称'] == 'DG_MONITOR_B1_ELECTRICAL_SCHEMATIC_DIAGRAM'
+    assert df.loc[1, '品目名称'] == 'XX' and df.loc[2, '図面台帳品目名称'] == NO_LEDGER_NAME

@@ -1,5 +1,7 @@
 """出図目録PDFの表 → 行データ変換と、PDFの判定（出図目録か／壊れていないか）を守る。"""
-from model.catalog_pdf import ROW_COLUMNS, is_catalog_tables, parse_catalog_pdf, parse_tables, render_pdf_pages
+import pytest
+
+from model.catalog_pdf import ROW_COLUMNS, is_catalog_tables, parse_catalog_pdf, parse_tables, reason_kind, render_pdf_pages
 
 HEADER = [['指図番号', None, 'ｻｲﾄﾞ', '図面番号'], ['ME26-9603-0', None, '405', 'EE7319-421-09A']]
 ITEM_HEAD = ['', '改', '符号', '品目名称', '図面番号', 'SZ', 'ﾒｰｶ名', '備考']
@@ -14,7 +16,7 @@ def test_parse_tables_extracts_columns_by_header_name_and_joins_wrapped_lines():
     table = item_table(['', '▼', '*', 'ＭＯＤＵＬＥ＿Ｂ１\n＿ＤＩＡＧＲＡＭ', 'EE7319-421-09A', 'A3', '', '変更|EE6763\n変更。'])
     rows = parse_tables([[HEADER, table]], 'x.pdf')
     assert list(rows[0]) == ROW_COLUMNS
-    assert rows[0] == {'指図番号': 'ME26-9603-0', '改': '▼', '品目名称': 'ＭＯＤＵＬＥ＿Ｂ１＿ＤＩＡＧＲＡＭ',
+    assert rows[0] == {'指図番号': 'ME26-9603-0', '区分': '', '改': '▼', '品目名称': 'ＭＯＤＵＬＥ＿Ｂ１＿ＤＩＡＧＲＡＭ',
                        '図面番号': 'EE7319-421-09A', 'SZ': 'A3', '備考': '変更|EE6763変更。',
                        'ファイル名': 'x.pdf', 'ページ': 1}
 
@@ -55,3 +57,31 @@ def test_render_pdf_pages_returns_one_image_per_page():
     pdf.save(buf)
     images = render_pdf_pages(buf.getvalue(), resolution=50)
     assert len(images) == 2 and all(im.size[0] > 0 for im in images)
+
+
+def _header_with_reason(value):
+    # 実PDFのヘッダ表の形（見出し行の次の行の同じ列に値が入る）
+    return [*HEADER, ['ﾓｼﾞｭｰﾙ', '承認依頼者', None, '改造理由', None, '発注数'], ['ZMB1', '', None, value, None, '1']]
+
+
+@pytest.mark.parametrize('value, expected', [
+    ('新規', '新規'),
+    ('変更|DCDCBD型式変更、D40ZをD40Aに変更。', '変更'),
+    ('新規|追加\n図面', '新規'),
+    ('', ''),
+    ('その他', ''),
+    ('図面を新規作成', ''),   # 冒頭が「新規」「変更」でなければ区分なし
+])
+def test_reason_kind_reads_the_start_of_the_reason_cell_by_header_name(value, expected):
+    assert reason_kind(_header_with_reason(value)) == expected
+
+
+def test_reason_kind_is_empty_when_header_has_no_reason_column():
+    assert reason_kind(HEADER) == ''
+
+
+def test_parse_tables_attaches_reason_kind_per_page():
+    """区分はページ単位で読む（1ページ目は変更・2ページ目は新規のPDFで、行ごとに区分が違う）。"""
+    row = ['', '', '006', 'ＵＮＩＴ', 'EE5443-006-01B', 'A3', '', '']
+    rows = parse_tables([[_header_with_reason('変更|x'), item_table(row)], [_header_with_reason('新規'), item_table(row)]], 'x.pdf')
+    assert [r['区分'] for r in rows] == ['変更', '新規'] and list(rows[0])[:2] == ['指図番号', '区分']
