@@ -14,7 +14,7 @@ LIST_COLUMNS = ['指図番号', '区分', '改', '品目名称', '図面番号',
 # 「整合性」列の値
 OK = '完全一致'
 NAME_DIFF = '品目名称不一致'
-NO_LEDGER = '台帳なし▼'
+NO_LEDGER = '台帳なし'
 NO_MARK = '▼なし'
 LEDGER_ONLY = '台帳のみ'
 EMPTY_LABEL = '（空欄）'  # 整合性が空文字の行を絞り込みで指すときの表示名

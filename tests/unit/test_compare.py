@@ -61,7 +61,7 @@ def _rows(df):
 
 
 def test_marked_rows_integrity_and_ledger_name():
-    """▼行: 一致／途中切れ=完全一致（台帳名称は空）、不一致・台帳に名称なし=品目名称不一致、台帳に図番なし=台帳なし▼。"""
+    """▼行: 一致／途中切れ=完全一致（台帳名称は空）、不一致・台帳に名称なし=品目名称不一致、台帳に図番なし=台帳なし。"""
     df = _rows(_build([
         catalog_row('EE1-1A', FULL, '▼'),
         catalog_row('EE2-2A', LONG[:44], '▼'),
@@ -124,7 +124,7 @@ def test_filter_by_integrity_selects_rows_including_empty_value(selected, expect
             catalog_row('C', '', mark='▼'), catalog_row('', 'BUY')]
     ledger = make_ledger_df([('A', '', 'X'), ('B', '', 'Y'), ('D', '', 'W')])
     df = build_catalog_list(rows, ledger, SHIBAN)
-    # A=完全一致, B=名称不一致, C=台帳なし▼, 購入部品=空欄, D=台帳のみ
+    # A=完全一致, B=名称不一致, C=台帳なし, 購入部品=空欄, D=台帳のみ
     assert list(filter_by_integrity(df, selected)['図面番号']) == expected_numbers
 
 

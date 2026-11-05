@@ -20,7 +20,7 @@ def _sheet():
     ledger = make_ledger_df([('EE1-1A', 'A', TITLE), ('EE2-2A', 'B', TITLE), ('EE9-9A', 'C', TITLE)])
     rows = [catalog_row('EE1-1A', to_catalog_name_format('A', TITLE), '▼', page=2),   # 完全一致
             catalog_row('EE2-2A', 'ＸＸ', '▼'),                                         # 品目名称不一致
-            catalog_row('EE5-5A', 'ＸＸ', '▼'),                                         # 台帳なし▼
+            catalog_row('EE5-5A', 'ＸＸ', '▼'),                                         # 台帳なし
             catalog_row('EE2-2A', 'ＸＸ', '')]                                          # ▼なし
     df = build_catalog_list(rows, ledger, 'ME26-9603-0')                               # 末尾に台帳のみ(EE9-9A)
     return openpyxl.load_workbook(io.BytesIO(create_excel(df)))[SHEET_NAME]
@@ -34,7 +34,7 @@ def test_header_and_ledger_columns_sit_between_note_and_filename():
 
 def test_integrity_values_and_ledger_name_per_row():
     ws = _sheet()
-    assert [ws.cell(r, 8).value for r in range(2, 7)] == ['完全一致', '品目名称不一致', '台帳なし▼', '▼なし', '台帳のみ']
+    assert [ws.cell(r, 8).value for r in range(2, 7)] == ['完全一致', '品目名称不一致', '台帳なし', '▼なし', '台帳のみ']
     assert ws.cell(2, 9).value is None
     assert ws.cell(3, 9).value == to_halfwidth(to_catalog_name_format('B', TITLE))   # 台帳側の名称は半角で出力
     assert ws.cell(6, 9).value == to_halfwidth(to_catalog_name_format('C', TITLE))
@@ -48,7 +48,7 @@ def test_ledger_only_row_has_blank_page_and_filename_and_a_numeric_page_elsewher
 
 
 def test_row_colors_follow_integrity_value():
-    """完全一致=緑、品目名称不一致=黄、台帳なし▼=青、▼なし・台帳のみ=赤（薄い色。ユーザー指定）。"""
+    """完全一致=緑、品目名称不一致=黄、台帳なし=青、▼なし・台帳のみ=赤（薄い色。ユーザー指定）。"""
     ws = _sheet()
     assert [_bg(ws.cell(r, 3)) for r in range(2, 7)] == [
         COLOR_GREEN[0], COLOR_YELLOW[0], COLOR_BLUE[0], COLOR_PINK[0], COLOR_PINK[0]]
