@@ -4,10 +4,10 @@ import io
 import openpyxl
 
 from conftest import catalog_row, make_ledger_df
-from model.compare import build_catalog_list, to_catalog_name_format
+from model.compare import build_catalog_list, to_catalog_name_format, to_halfwidth
 from model.excel_export import COLOR_BLUE, COLOR_GREEN, COLOR_PINK, COLOR_YELLOW, SHEET_NAME, create_excel
 
-EXPECTED_HEADER = ['指図番号', '改', '品目名称', '図面番号', 'SZ', '備考',
+EXPECTED_HEADER = ['指図番号', '区分', '改', '品目名称', '図面番号', 'SZ', '備考',
                    '整合性', '図面台帳品目名称', 'ファイル名', 'ページ']
 TITLE = 'ELECTRICAL SCHEMATIC DIAGRAM'
 
@@ -34,16 +34,17 @@ def test_header_and_ledger_columns_sit_between_note_and_filename():
 
 def test_integrity_values_and_ledger_name_per_row():
     ws = _sheet()
-    assert [ws.cell(r, 7).value for r in range(2, 7)] == ['完全一致', '品目名称不一致', '台帳なし▼', '▼なし', '台帳のみ']
-    assert ws.cell(2, 8).value is None
-    assert ws.cell(3, 8).value == to_catalog_name_format('B', TITLE)
-    assert ws.cell(6, 8).value == to_catalog_name_format('C', TITLE)
+    assert [ws.cell(r, 8).value for r in range(2, 7)] == ['完全一致', '品目名称不一致', '台帳なし▼', '▼なし', '台帳のみ']
+    assert ws.cell(2, 9).value is None
+    assert ws.cell(3, 9).value == to_halfwidth(to_catalog_name_format('B', TITLE))   # 台帳側の名称は半角で出力
+    assert ws.cell(6, 9).value == to_halfwidth(to_catalog_name_format('C', TITLE))
+    assert ws.cell(2, 4).value == 'A_ELECTRICAL_SCHEMATIC_DIAGRAM'                     # 品目名称も半角
 
 
 def test_ledger_only_row_has_blank_page_and_filename_and_a_numeric_page_elsewhere():
     ws = _sheet()
-    assert ws.cell(2, 10).value == 2
-    assert ws.cell(6, 4).value == 'EE9-9A' and ws.cell(6, 9).value is None and ws.cell(6, 10).value is None
+    assert ws.cell(2, 11).value == 2
+    assert ws.cell(6, 5).value == 'EE9-9A' and ws.cell(6, 10).value is None and ws.cell(6, 11).value is None
 
 
 def test_row_colors_follow_integrity_value():

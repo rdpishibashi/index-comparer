@@ -6,9 +6,12 @@ pdfplumber の ``page.extract_tables()`` が返すページごとの表リスト
 import io
 from dataclasses import dataclass, field
 
-ROW_COLUMNS = ['指図番号', '改', '品目名称', '図面番号', 'SZ', '備考', 'ファイル名', 'ページ']
+ROW_COLUMNS = ['指図番号', '区分', '改', '品目名称', '図面番号', 'SZ', '備考', 'ファイル名', 'ページ']
 _ITEM_COLUMNS = ('改', '品目名称', '図面番号', 'SZ', '備考')
 _CATALOG_TITLE = '出図目録'
+_REASON_HEADER = '改造理由'
+NEW_KIND = '新規'
+CHANGE_KIND = '変更'
 
 
 @dataclass
@@ -33,6 +36,22 @@ def _find_item_table(tables):
     return next((t for t in tables if t and t[0] and '品目名称' in t[0]), None)
 
 
+def reason_kind(header):
+    """ヘッダ表の「改造理由」欄の値の冒頭から区分（新規／変更）を返す。どちらでもなければ空文字。
+
+    欄は見出し名で引く（見出し行の次の行の同じ列）。
+    """
+    for i, row in enumerate(header):
+        if _REASON_HEADER in row and i + 1 < len(header):
+            col = row.index(_REASON_HEADER)
+            value = _clean(header[i + 1][col]) if col < len(header[i + 1]) else ''
+            for kind in (NEW_KIND, CHANGE_KIND):
+                if value.startswith(kind):
+                    return kind
+            return ''
+    return ''
+
+
 def is_catalog_tables(tables):
     return _find_header_table(tables) is not None and _find_item_table(tables) is not None
 
@@ -42,6 +61,7 @@ def parse_tables(tables_per_page, filename):
 
     指図番号は各ページのヘッダ表から取り、そのページの全行に付ける。
     全項目が空の行は捨てる。
+    区分（新規／変更／空）はヘッダ表の「改造理由」欄からページ単位で取り、そのページの全行に付ける。
     """
     rows = []
     for page_no, tables in enumerate(tables_per_page, 1):
@@ -50,12 +70,13 @@ def parse_tables(tables_per_page, filename):
         if header is None or item is None:
             continue
         order_no = _clean(header[1][0]) if len(header) > 1 else ''
+        kind = reason_kind(header)
         index = {name: item[0].index(name) for name in _ITEM_COLUMNS}
         for raw in item[1:]:
             record = {name: _clean(raw[i]) for name, i in index.items()}
             if not any(record.values()):
                 continue
-            rows.append({'指図番号': order_no, **record, 'ファイル名': filename, 'ページ': page_no})
+            rows.append({'指図番号': order_no, '区分': kind, **record, 'ファイル名': filename, 'ページ': page_no})
     return rows
 
 

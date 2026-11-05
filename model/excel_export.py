@@ -17,7 +17,7 @@ COLOR_GREEN = ('#EAF7EC', '#006100')   # 薄い緑
 INTEGRITY_COLORS = {OK: COLOR_GREEN, NAME_DIFF: COLOR_YELLOW, NO_LEDGER: COLOR_BLUE,
                     NO_MARK: COLOR_PINK, LEDGER_ONLY: COLOR_PINK}
 
-COLUMN_WIDTHS = {'指図番号': 14, '改': 5, '品目名称': 60, '図面番号': 18, 'SZ': 5, '備考': 50,
+COLUMN_WIDTHS = {'指図番号': 14, '区分': 6, '改': 5, '品目名称': 60, '図面番号': 18, 'SZ': 5, '備考': 50,
                  '整合性': 14, '図面台帳品目名称': 60, 'ファイル名': 40, 'ページ': 6}
 
 

@@ -6,8 +6,9 @@ import pandas as pd
 MARK = '▼'
 TRUNCATION_MIN_CHARS = 40  # これ以上の長さで台帳文字列の先頭と一致すれば「目録側が途中で切れているだけ」とみなす
 NO_LEDGER_NAME = '（台帳に名称なし）'
+NEW_KIND = '新規'  # この区分のページは「改」に ▼ が無くても全行を ▼ ありとして扱う
 
-LIST_COLUMNS = ['指図番号', '改', '品目名称', '図面番号', 'SZ', '備考',
+LIST_COLUMNS = ['指図番号', '区分', '改', '品目名称', '図面番号', 'SZ', '備考',
                 '整合性', '図面台帳品目名称', 'ファイル名', 'ページ']
 
 # 「整合性」列の値
@@ -29,6 +30,11 @@ def to_catalog_name_format(subtitle, title):
     return ''.join(chr(ord(c) + 0xFEE0) if '!' <= c <= '~' else c for c in joined)
 
 
+def to_halfwidth(text):
+    """全角の英数記号と全角空白を半角にする（表示用。カナ・漢字・その他の記号は変えない）。"""
+    return ''.join(chr(ord(c) - 0xFEE0) if '！' <= c <= '～' else (' ' if c == '\u3000' else c) for c in text)
+
+
 def names_match(catalog_name, ledger_name):
     """完全一致、または目録側が途中で切れているだけ（40文字以上で台帳文字列の先頭と一致）なら True。"""
     if not ledger_name:
@@ -45,6 +51,7 @@ def _ledger_lookup(ledger_df):
 def build_catalog_list(catalog_rows, ledger_df, shiban):
     """出図目録の全行に「整合性」「図面台帳品目名称」を付け、台帳にしかない図番の行を末尾に足す。
 
+    - ▼ あり: 「改」が ▼、または区分が「新規」（改造理由が「新規」のページは全行を ▼ ありとみなす）
     - 整合性: 図番が空の行（購入部品）と、▼なしで台帳にも無い図番の行は空欄
     - 図面台帳品目名称: 台帳に図番があり、品目名称が一致しない場合のみ台帳側を目録書式で記載
     """
@@ -58,18 +65,21 @@ def build_catalog_list(catalog_rows, ledger_df, shiban):
         note = '' if (not in_ledger or name_ok) else (ledger_name or NO_LEDGER_NAME)
         if not number:
             integrity = ''
-        elif row['改'] == MARK:
+        elif row['改'] == MARK or row.get('区分', '') == NEW_KIND:
             integrity = (OK if name_ok else NAME_DIFF) if in_ledger else NO_LEDGER
         else:
             integrity = NO_MARK if in_ledger else ''
-        out.append({**row, '整合性': integrity, '図面台帳品目名称': note})
+        out.append({**row, '区分': row.get('区分', ''), '整合性': integrity, '図面台帳品目名称': note})
 
     in_catalog = {r['図面番号'] for r in catalog_rows if r['図面番号']}
     for child in sorted(set(lookup) - in_catalog):
-        out.append({'指図番号': shiban, '改': '', '品目名称': '', '図面番号': child, 'SZ': '', '備考': '',
+        out.append({'指図番号': shiban, '区分': '', '改': '', '品目名称': '', '図面番号': child, 'SZ': '', '備考': '',
                     '整合性': LEDGER_ONLY, '図面台帳品目名称': lookup[child] or NO_LEDGER_NAME,
                     'ファイル名': '', 'ページ': None})
     df = pd.DataFrame(out, columns=LIST_COLUMNS)
+    # 半角化は判定のあとの表示用。台帳に名称なしの注記（記号の全角括弧）はそのまま残す
+    df['品目名称'] = df['品目名称'].map(to_halfwidth)
+    df['図面台帳品目名称'] = df['図面台帳品目名称'].map(lambda t: t if t == NO_LEDGER_NAME else to_halfwidth(t))
     # 台帳のみの行は「ページ」が空。int と None の混在列は Arrow 変換で警告になるため nullable 整数にそろえる
     df['ページ'] = df['ページ'].astype('Int64')
     return df
