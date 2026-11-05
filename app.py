@@ -53,43 +53,45 @@ def _render_pages(file_bytes):
 
 
 def run_comparison(pdfs, ledger_file, shiban):
-    with st.spinner("図面管理台帳を読み込んでいます..."):
+    # 円形のスピナーを全体に出し、いま何をしているかは下の1行（status）に出す
+    with st.spinner("比較を実行しています..."):
+        status = st.empty()
+        status.caption("図面管理台帳を読み込んでいます...")
         ledger_df, error = load_ledger(ledger_file.getvalue())
-    if error:
-        st.error(error)
-        return None
+        if error:
+            status.empty()
+            st.error(error)
+            return None
 
-    rows, catalogs, excluded, skipped, errors = [], [], [], [], []
-    placeholder = st.empty()
-    bar = placeholder.progress(0.0, text="出図目録を読み込んでいます...")
-    for i, f in enumerate(pdfs, start=1):
-        # 重いPDFの処理中も何を読んでいるか分かるよう、読み込みの前にファイル名を出す
-        bar.progress((i - 1) / len(pdfs), text=f"{i}/{len(pdfs)}件目を読み込み中: {f.name}")
-        parsed = parse_catalog_pdf(f.getvalue(), f.name)
-        note = ''  # 「出図目録の確認」で比較対象外の理由を添える
-        if parsed.status == 'skipped':
-            skipped.append(f.name)
-            note = '出図目録ではないPDF'
-        elif parsed.status == 'error':
-            errors.append(f"{f.name}: {parsed.message}")
-            note = '読み込めなかったPDF'
-        elif parsed.order_no != shiban:
-            excluded.append(f"{f.name}（指図番号 {parsed.order_no or '不明'}）")
-            note = '指番不一致'
-        else:
-            rows += parsed.rows
-        catalogs.append((f.name, f.getvalue(), note))  # 比較対象外のPDFも確認用に残す
-        bar.progress(i / len(pdfs), text=f"{i}/{len(pdfs)}件を読み込みました")
-    placeholder.empty()
+        rows, catalogs, excluded, skipped, errors = [], [], [], [], []
+        for i, f in enumerate(pdfs, start=1):
+            # 重いPDFの処理中も何を読んでいるか分かるよう、読み込みの前にファイル名を出す
+            status.caption(f"出図目録を読み込んでいます（{i}/{len(pdfs)}件目）: {f.name}")
+            parsed = parse_catalog_pdf(f.getvalue(), f.name)
+            note = ''  # 「出図目録の確認」で比較対象外の理由を添える
+            if parsed.status == 'skipped':
+                skipped.append(f.name)
+                note = '出図目録ではないPDF'
+            elif parsed.status == 'error':
+                errors.append(f"{f.name}: {parsed.message}")
+                note = '読み込めなかったPDF'
+            elif parsed.order_no != shiban:
+                excluded.append(f"{f.name}（指図番号 {parsed.order_no or '不明'}）")
+                note = '指番不一致'
+            else:
+                rows += parsed.rows
+            catalogs.append((f.name, f.getvalue(), note))  # 比較対象外のPDFも確認用に残す
 
-    if not rows:
-        st.error(f"指番 {shiban} の出図目録を読み込めませんでした。")
-        _show_warnings(excluded, skipped, errors)
-        return None
+        if not rows:
+            status.empty()
+            st.error(f"指番 {shiban} の出図目録を読み込めませんでした。")
+            _show_warnings(excluded, skipped, errors)
+            return None
 
-    with st.spinner("台帳と比較して、Excelを作成しています..."):
+        status.caption("台帳と比較して、Excelを作成しています...")
         catalog_df = build_catalog_list(rows, ledger_df, shiban)
         excel = create_excel(catalog_df)
+        status.empty()
     return {
         'shiban': shiban, 'catalog_df': catalog_df, 'ledger_df': ledger_df, 'catalogs': catalogs,
         'excel': excel,
@@ -143,7 +145,7 @@ def show_result(result):
                     continue
                 with st.container(height=700):
                     for image in images:
-                        st.image(image, width='stretch')
+                        st.image(image, width='stretch', output_format='PNG')  # 既定(auto)はJPEGで文字がにじむ
 
     with st.expander("図面管理台帳の確認", expanded=False):
         ledger_view = result['ledger_df'].rename(columns={'Child': '図面番号'})[['図面番号', 'Title', 'Subtitle']]
