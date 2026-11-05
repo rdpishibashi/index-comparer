@@ -53,7 +53,8 @@ def _render_pages(file_bytes):
 
 
 def run_comparison(pdfs, ledger_file, shiban):
-    ledger_df, error = load_ledger(ledger_file.getvalue())
+    with st.spinner("図面管理台帳を読み込んでいます..."):
+        ledger_df, error = load_ledger(ledger_file.getvalue())
     if error:
         st.error(error)
         return None
@@ -62,6 +63,8 @@ def run_comparison(pdfs, ledger_file, shiban):
     placeholder = st.empty()
     bar = placeholder.progress(0.0, text="出図目録を読み込んでいます...")
     for i, f in enumerate(pdfs, start=1):
+        # 重いPDFの処理中も何を読んでいるか分かるよう、読み込みの前にファイル名を出す
+        bar.progress((i - 1) / len(pdfs), text=f"{i}/{len(pdfs)}件目を読み込み中: {f.name}")
         parsed = parse_catalog_pdf(f.getvalue(), f.name)
         note = ''  # 「出図目録の確認」で比較対象外の理由を添える
         if parsed.status == 'skipped':
@@ -76,7 +79,7 @@ def run_comparison(pdfs, ledger_file, shiban):
         else:
             rows += parsed.rows
         catalogs.append((f.name, f.getvalue(), note))  # 比較対象外のPDFも確認用に残す
-        bar.progress(i / len(pdfs), text=f"{i}/{len(pdfs)}件を読み込み中...")
+        bar.progress(i / len(pdfs), text=f"{i}/{len(pdfs)}件を読み込みました")
     placeholder.empty()
 
     if not rows:
@@ -84,10 +87,12 @@ def run_comparison(pdfs, ledger_file, shiban):
         _show_warnings(excluded, skipped, errors)
         return None
 
-    catalog_df = build_catalog_list(rows, ledger_df, shiban)
+    with st.spinner("台帳と比較して、Excelを作成しています..."):
+        catalog_df = build_catalog_list(rows, ledger_df, shiban)
+        excel = create_excel(catalog_df)
     return {
         'shiban': shiban, 'catalog_df': catalog_df, 'ledger_df': ledger_df, 'catalogs': catalogs,
-        'excel': create_excel(catalog_df),
+        'excel': excel,
         'excluded': excluded, 'skipped': skipped, 'errors': errors,
         'pdf_count': len(pdfs) - len(excluded) - len(skipped) - len(errors),
     }
